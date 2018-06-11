@@ -1,5 +1,6 @@
 //Program Created by Jermaine Lara
 // 5/4/18
+// Fixed Deletion 6/10/18
 // Program to create a Red-Black Tree from a file or user input, 
 // and can insert and print the Red-Black Tree on user command
 // Based off example code from: https://www.geeksforgeeks.org/c-program-red-black-tree-insertion/
@@ -29,10 +30,11 @@ void rotateLeft(Node* &root, Node* &node);
 void rotateRight(Node* &root, Node* &node);
 const char* getColorString(Node* node);
 bool isRed(Node* node);
+bool isBlack(Node* node);
 Node* getSibling(Node* node);
 void repairTree(Node* &root, Node* &node);
 void swapColor(Node* node1, Node* node2);
-void replaceNode(Node* node, Node* child);
+void replaceNode(Node* &root, Node* node, Node* child);
 bool deleteNode(Node* &root, int value);
 void deleteCase1(Node* &root, Node * node);
 void deleteCase2(Node* &root, Node * node);
@@ -40,8 +42,8 @@ void deleteCase3(Node* &root, Node * node);
 void deleteCase4(Node* &root, Node * node);
 void deleteCase5(Node* &root, Node * node);
 void deleteCase6(Node* &root, Node * node);
-bool isLeaf(Node* node);
 Node* search(Node* node, int value);
+Node* maximumNode(Node* node);
 
 int main () {
 	Node* root = NULL;
@@ -113,7 +115,7 @@ int main () {
 // Read the numbers from a file and build RB Tree
 Node* readFile() {
 	char fileName[81];
-    cout << "Enter file name (with comma separated values): " << endl;
+    cout << "Enter file name (with comma separated values3): " << endl;
 	cin >> fileName;
     int number;
 	char separator;
@@ -133,7 +135,7 @@ Node* readFile() {
 		file.close();
     }
     else {
-		cout << "Unable to open file" << endl; 
+		cout << "Unable to open file"; 
     }
 	return root;
 }
@@ -337,6 +339,10 @@ bool isRed(Node* node) {
 	return node != NULL && node->color == COLOR_RED;
 }
 
+bool isBlack(Node* node) {
+	return !isRed(node);
+}
+
 Node* getSibling(Node* node) {
 	Node* parent = node->parent;
     if (parent == NULL) {
@@ -350,10 +356,6 @@ Node* getSibling(Node* node) {
 	}
 }
 
-bool isLeaf(Node* node) {
-	return node != NULL && node->left == NULL && node->right == NULL;
-}
-
 // Swaps the color of two nodes
 void swapColor(Node* node1, Node* node2) {
 	bool temp = node1->color;
@@ -362,15 +364,20 @@ void swapColor(Node* node1, Node* node2) {
 }
 
 //Substitutes child into Node's place in the tree
-void replaceNode(Node* node, Node* child) {
-	if (child != NULL) {
-		child->parent = node->parent;
-	}
-	if (node == node->parent->left) {
-		node->parent->left = child;
+void replaceNode(Node* &root, Node* node, Node* child) {
+	if(node->parent == NULL) {
+		root = child;
 	}
 	else {
-		node->parent->right = child;
+		if (node == node->parent->left) {
+			node->parent->left = child;
+		}
+		else {
+			node->parent->right = child;
+		}
+	}
+	if (child != NULL) {
+		child->parent = node->parent;
 	}
 }
 		
@@ -387,21 +394,29 @@ Node* search(Node* node, int value) {
 	return node;
 }
 		
+Node* maximumNode(Node* node) {
+		while (node->right != NULL) {
+			node = node->right;
+		}
+		return node;
+}
+		
 bool deleteNode(Node* &root, int value) {
 	Node* node = search(root, value);
 	if (node == NULL) {
 		return false;
 	}
-    Node* child = isLeaf(node->right) ? node->left : node->right;
-	replaceNode(node, child); 
-	if (child != NULL && node->color == COLOR_BLACK) {
-		if (child->color == COLOR_RED) {
-			child->color = COLOR_BLACK;
-		}
-		else {
-			deleteCase1(root, child);
-		}
+	if(node->left != NULL && node->right != NULL) {
+		Node* pred = maximumNode(node->left);
+		node->value = pred->value;
+		node = pred;
 	}
+    Node* child = node->right == NULL ? node->left : node->right;
+	if(isBlack(node)) {
+		node->color = child == NULL ? COLOR_BLACK : child->color;
+		deleteCase1(root, node);
+	}
+	replaceNode(root, node, child); 
 	delete node;
 	return true;
 }
@@ -416,7 +431,7 @@ void deleteCase1(Node* &root, Node * node) {
 
 void deleteCase2(Node* &root, Node * node) {
 	Node * sibling = getSibling(node);
-		if (sibling->color == COLOR_RED) {
+		if (isRed(sibling)) {
 			node->parent->color = COLOR_RED;
 			sibling->color = COLOR_BLACK;
 			if (node == node->parent->left) {
@@ -432,12 +447,11 @@ void deleteCase2(Node* &root, Node * node) {
 
 void deleteCase3(Node* &root, Node * node) {
 	Node * sibling = getSibling(node);
-	if((node->parent->color == COLOR_BLACK) &&
-	(sibling->color == COLOR_BLACK) &&
-	(sibling->left->color == COLOR_BLACK) &&
-	(sibling->right->color == COLOR_BLACK)) {
+	if(isBlack(node->parent) &&
+	isBlack(sibling) &&
+	isBlack(sibling->left) &&
+	isBlack(sibling->right)) {
 		sibling->color = COLOR_RED;
-		
 		deleteCase1(root, node->parent);
 	}
 	else {
@@ -447,31 +461,31 @@ void deleteCase3(Node* &root, Node * node) {
 
 void deleteCase4(Node* &root, Node * node) {
 	Node * sibling = getSibling(node);
-	if((node->parent->color == COLOR_RED) && 
-		(sibling->color == COLOR_BLACK) && 
-		(sibling->left->color == COLOR_BLACK) && 
-		(sibling->right->color == COLOR_BLACK)) {
-	sibling->color = COLOR_RED;
-	node->parent->color = COLOR_BLACK;
-		}
-		else {
+	if(isRed(node->parent) && 
+		isBlack(sibling) && 
+		isBlack(sibling->left) && 
+		isBlack(sibling->right)) {
+			sibling->color = COLOR_RED;
+			node->parent->color = COLOR_BLACK;
+	}
+	else {
 		deleteCase5(root, node);
-		}
+	}
 }
 			
 void deleteCase5(Node* &root, Node * node) {
 	Node * sibling = getSibling(node);
-	if (sibling->color == COLOR_BLACK) {
+	if (isBlack(sibling)) {
 		if ((node == node->parent->left) &&
-		(sibling->right->color == COLOR_BLACK) &&
-		(sibling->left->color == COLOR_RED)) {
+		isBlack(sibling->right) &&
+		isRed(sibling->left)) {
 			sibling->color = COLOR_RED;
 			sibling->left->color = COLOR_BLACK;
 			rotateRight(root, sibling);
 		}
 		else if ((node == node->parent->right) &&
-		(sibling->left->color == COLOR_BLACK) &&
-		(sibling->right->color == COLOR_RED)) {
+		isBlack(sibling->left) &&
+		isRed(sibling->right)) {
 			sibling->color = COLOR_RED;
 			sibling->right->color = COLOR_BLACK;
 			rotateLeft(root, sibling);
